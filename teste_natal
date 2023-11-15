@@ -1,0 +1,67 @@
+import geopandas as gpd
+import os 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+def path_list():
+    municipios = os.getcwd() + '/municipios.shp'
+    aeroportos = os.getcwd() + '/aeroportos.shp'
+    rodovias = os.getcwd() + '/rodovias.shp'
+    
+    return [municipios, aeroportos, rodovias]
+#FUNCAO PARA ABRIR OS SHAPEFILES
+def open_shapefile():
+    return [gpd.read_file(i) for i in path_list()]
+
+#FILTRAGEM PRA CAMADA MUNICIPIOS
+def filter_municipios(state,shapes):
+    
+    return shapes[shapes['uf'] == state]
+
+#CRIANDO A FILTRAGEM PRA CAMADA AEROPORTO
+def airports(shape, municipio_filtrado):
+    gdf = gpd.sjoin(shape, municipio_filtrado, op='within') #filtrando os aeroportos a aprtir do estado
+    total_airports =  gdf.value_counts('TipoAero') # contanto quantos aeroportos tem no estado
+    total_pavi = gdf.value_counts('pavimento') # contanto a qnt de cada tipo de pavimento do aeroproto
+    
+    return gdf, total_airports, total_pavi
+
+#FUNCAO PARA AS RODOVIAS 
+
+def roads(shape, municipio_filtrado):
+    gdf =  gpd.overlay(shape,municipio_filtrado, how='intersection') 
+    gdf_proj = gdf.copy()
+    gdf_proj['geometry'] = gdf_proj['geometry'].to_crs(epsg = 5880)
+    gdf_proj['distancia_km'] = gdf_proj['geometry'].length /1000
+    
+    
+    return gdf_proj.plot()#agrupou por tipo e somou
+    
+#FUNCAO PARA EXECUTAR TODAS AS OUTRAS
+def run(state):
+    shapes = open_shapefile() # abrir os shapes
+    municipio_filter = filter_municipios(state,shapes[0])  # dentro da chaves 0= municipios 1-= aeroporto 2 = rodovias
+    gdf_airports, aeroportos, pavimento = airports(shapes[1],municipio_filter)
+    gdf_roads = roads(shapes[2],municipio_filter)
+    # filtragem do aeroportos
+    # print(f'Estatisticas do Estado {state} ' )
+    # print(aeroportos)
+    # print(pavimento)
+    # gdf.plot()
+    
+    return municipio_filter, gdf_airports, gdf_roads
+
+run(RN)
+
+municipio_filter['area'] = municipio_filter['geometry'].to_crs(epsg=5880).area/1000000 # calculando as areas dos municipios 2
+municipio_filter.plot(column='area')
+
+fig, ax = plt.subplots(1,1, figsize=(20,20))
+municipio_filter.plot(ax=ax, column='area')
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+fig, ax = plt.subplots(1,1, figsize=(20,15))
+plt.title("Municipios do Estado do RN classificados por área - km²", fontsize=20, y=1)
+div = make_axes_locatable(ax)
+cax = div.append_axes("bottom", size='5%', pad=0.3)
+municipio_filter.plot(ax=ax, column='area', legend=True, legend_kwds={"label":'Área (km²)', "orientation":'horizontal'}, cmap="RdBu_r", cax=cax)
+municipio_filter.to_file(os.getcwd() + '/municipio_filter.jpg')
